@@ -10,7 +10,6 @@ class PerspectiveTransform
         void calculateWarpPoints(const cv::Mat& image, std::vector<cv::Point2f>& src, std::vector<cv::Point2f>& dst, int y_bottom, int y_top, int offset = 200);
         void perspectiveTransform(std::vector<cv::Point2f>& src, std::vector<cv::Point2f>& dst, cv::Mat& M, cv::Mat& Minv);
         void perspectiveWarp(cv::Mat& image, cv::Mat& dst, cv::Mat& M);
-        void perspectiveToMaps(const cv::Mat& perspective_mat, const cv::Size& img_size, cv::Mat& map1, cv::Mat& map2);
 };
 
 #endif

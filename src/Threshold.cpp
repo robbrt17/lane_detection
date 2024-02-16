@@ -49,7 +49,8 @@ void Threshold::hls(cv::Mat const& src, cv::Mat& dst, uint8_t threshold_min, uin
 void Threshold::combined(cv::Mat const& img, cv::Mat& dst)
 {
     cv::Mat sobel_x, sobel_y, combined, hls_bin;
-    Threshold::absoluteSobel(img, sobel_x, 'x', 3, 50, 255);
+    // Threshold::absoluteSobel(img, sobel_x, 'x', 3, 50, 255);
+    Threshold::canny(img, sobel_x);
 
     Threshold::hls(img, hls_bin, 170, 255);
 

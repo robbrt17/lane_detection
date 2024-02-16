@@ -74,6 +74,7 @@
         "xtree": "cpp",
         "xutility": "cpp",
         "filesystem": "cpp",
-        "fstream": "cpp"
+        "fstream": "cpp",
+        "typeindex": "cpp"
     }
 }
