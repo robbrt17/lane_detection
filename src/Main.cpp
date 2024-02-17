@@ -12,10 +12,8 @@
 #include "Threshold.hpp"
 #include "LaneDetector.hpp"
 #include "QueueFPS.hpp"
-#include "ThreadPool.hpp"
 
 #define USE_THREADS
-// #define USE_THREAD_POOL
 
 int thread_number = 3;
 
@@ -23,29 +21,17 @@ Threshold threshold;
 PerspectiveTransform perspective;
 
 cv::Mat thresholded, abs_sobel, hls[3];
-cv::Mat warped, unwarped;
+cv::Mat warped, unwarped;    
 
-QueueFPS<cv::Mat> processedFramesQueue;
-
-void processFrame(cv::Mat& frame, cv::Mat& dst)
+void idk(QueueFPS<cv::Mat> queue, std::function<void()>)
 {
-    std::vector<cv::Point2f> ROI_points, warp_destination_points;
-    cv::Mat M, Minv;          
 
-    perspective.calculateWarpPoints(frame, ROI_points, warp_destination_points, 720, 425);
-    perspective.perspectiveTransform(ROI_points, warp_destination_points, M, Minv); 
-    threshold.canny(frame, thresholded);
-    perspective.perspectiveWarp(thresholded, warped, M);
-
-    dst = warped;
 }
 
 int main() 
 {
-    cv::namedWindow("test", cv::WINDOW_NORMAL);
-
     // Get test video
-    cv::VideoCapture video_capture("./test_videos/Video_output.mp4");
+    cv::VideoCapture video_capture("./test_videos/project_video_340.mp4");
 
     // If it can't be opened, return error message and exit
     if (video_capture.isOpened() == false) 
@@ -59,72 +45,6 @@ int main()
     std::cout << "Video frames per second: " << video_capture.get(cv::CAP_PROP_FPS) << std::endl;
 
 #ifdef USE_THREADS
-#ifdef USE_THREAD_POOL
-    bool process = true;
-    
-    QueueFPS<cv::Mat> framesQueue;
-    std::thread framesThread([&](){
-        cv::Mat frame;
-        while (process)
-        {
-            video_capture >> frame;
-            if (!frame.empty())
-            {
-                framesQueue.push(frame.clone());
-            }
-            else
-            {
-                break;
-            }
-        }
-    });
-
-    
-    ThreadPool pool(thread_number);
-
-    while (true)
-    {
-        cv::Mat frame, res;
-
-        while (processedFramesQueue.size() > 0)
-        {
-            res = processedFramesQueue.get();
-            cv::imshow("test", res);
-        }
-
-        if (processedFramesQueue.size() < thread_number)
-        {
-            if (!framesQueue.empty())
-            {
-                frame = framesQueue.get();
-            }
-            cv::Mat processed_frame;
-            if (!frame.empty())
-            {
-                pool.enqueue([frame] {
-                    std::vector<cv::Point2f> ROI_points, warp_destination_points;
-                    cv::Mat M, Minv;          
-
-                    perspective.calculateWarpPoints(frame, ROI_points, warp_destination_points, 720, 425);
-                    perspective.perspectiveTransform(ROI_points, warp_destination_points, M, Minv); 
-                    threshold.canny(frame, thresholded);
-                    perspective.perspectiveWarp(thresholded, warped, M);
-
-                    processedFramesQueue.push(thresholded);
-                });
-            }
-        }
-
-        if (cv::waitKey(1) == 27)
-        {
-            break;
-        }
-    }
-
-    process = false;
-    framesThread.join();
-    cv::destroyAllWindows();
-#else
     bool process = true;
 
     QueueFPS<cv::Mat> framesQueue;
@@ -144,11 +64,8 @@ int main()
         }
     });
 
-    QueueFPS<cv::Mat> processedFramesQueue;
-    std::thread processingThread([&](){
-        std::queue<cv::AsyncArray> futureOutputs;
-        cv::Mat blob;
-
+    QueueFPS<cv::Mat> thresholdedFramesQueue;
+    std::thread thresholdingThread([&](){
         while (process)
         {
             cv::Mat frame;
@@ -160,22 +77,39 @@ int main()
 
             if (!frame.empty())
             {
-                std::vector<cv::Point2f> ROI_points, warp_destination_points;
-                cv::Mat M, Minv;          
+                threshold.combined(frame, thresholded); 
 
-                perspective.calculateWarpPoints(frame, ROI_points, warp_destination_points, 720, 425);
-                perspective.perspectiveTransform(ROI_points, warp_destination_points, M, Minv); 
-                threshold.canny(frame, thresholded);
-                perspective.perspectiveWarp(thresholded, warped, M);
-                // cv::warpPerspective(warped, unwarped, Minv, warped.size(), cv::INTER_LINEAR);
-                // threshold.combined(frame, thresholded);
-                processedFramesQueue.push(thresholded);
-                // std::cout << framesQueue.size() << std::endl;
+                thresholdedFramesQueue.push(thresholded);
             }
         }
     });
 
-    while (1)
+    QueueFPS<cv::Mat> processedFramesQueue;
+    std::thread processingThread([&](){
+        while (process)
+        {
+            cv::Mat frame;
+
+            if (!thresholdedFramesQueue.empty())
+            {
+                frame = thresholdedFramesQueue.get();
+            }
+
+            if (!frame.empty())
+            {
+                std::vector<cv::Point2f> ROI_points, warp_destination_points;
+                cv::Mat M, Minv;          
+                // threshold.combined(frame, thresholded); 
+                perspective.calculateWarpPoints(frame, ROI_points, warp_destination_points);
+                perspective.perspectiveTransform(ROI_points, warp_destination_points, M, Minv);
+                perspective.perspectiveWarp(frame, warped, M);
+
+                processedFramesQueue.push(warped);
+            }
+        }
+    });
+
+    while (true)
     {
         auto start_time = std::chrono::high_resolution_clock::now();
         cv::Mat frame;
@@ -193,9 +127,7 @@ int main()
             // std::cout << "FPS: " << (video_capture.get(cv::CAP_PROP_FRAME_COUNT) / elapsed_time) << std::endl;
         }
 
-        
-
-        if (cv::waitKey() == 27)
+        if (cv::waitKey(1) == 27)
         {
             break;
         }
@@ -203,8 +135,9 @@ int main()
 
     process = false;
     framesThread.join();
+    thresholdingThread.join();
     processingThread.join();
-#endif
+    cv::destroyAllWindows();
 
 #else
     for (int frame_index = 0; frame_index < (int)video_capture.get(cv::CAP_PROP_FRAME_COUNT); frame_index++)

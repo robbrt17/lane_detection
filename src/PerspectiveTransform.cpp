@@ -1,6 +1,6 @@
 #include "PerspectiveTransform.hpp"
 
-void PerspectiveTransform::calculateWarpPoints(const cv::Mat& image, std::vector<cv::Point2f>& src, std::vector<cv::Point2f>& dst, int y_bottom, int y_top, int offset)
+void PerspectiveTransform::calculateWarpPoints(const cv::Mat& image, std::vector<cv::Point2f>& src, std::vector<cv::Point2f>& dst)
 {
     // Calculate the vertices of the region of interest
     src.push_back(cv::Point2f(200, 720));

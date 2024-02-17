@@ -54,13 +54,7 @@ void Threshold::combined(cv::Mat const& img, cv::Mat& dst)
 
     Threshold::hls(img, hls_bin, 170, 255);
 
-    dst = hls_bin | sobel_x;
-
-    // cv::FileStorage file("whatisgoingon.xml", cv::FileStorage::WRITE);
-    // file << "sobel_x" << sobel_x;
-    // file << "hls_bin" << hls_bin;
-    // file << "dst" << dst;
-    // file.release();
-
+    dst = sobel_x | hls_bin;
+    
     return;
 }

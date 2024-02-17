@@ -14,7 +14,10 @@ template <typename T>
 class QueueFPS : public std::queue<T>
 {
 public:
-    QueueFPS() : counter(0) {}
+    QueueFPS()
+    {
+        counter = 0;
+    }
 
     void push(const T& entry)
     {
