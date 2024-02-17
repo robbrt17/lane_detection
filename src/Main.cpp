@@ -12,17 +12,36 @@
 #include "Threshold.hpp"
 #include "LaneDetector.hpp"
 #include "QueueFPS.hpp"
+#include "ThreadPool.hpp"
 
 #define USE_THREADS
+// #define USE_THREAD_POOL
+
+int thread_number = 3;
+
+Threshold threshold;
+PerspectiveTransform perspective;
+
+cv::Mat thresholded, abs_sobel, hls[3];
+cv::Mat warped, unwarped;
+
+QueueFPS<cv::Mat> processedFramesQueue;
+
+void processFrame(cv::Mat& frame, cv::Mat& dst)
+{
+    std::vector<cv::Point2f> ROI_points, warp_destination_points;
+    cv::Mat M, Minv;          
+
+    perspective.calculateWarpPoints(frame, ROI_points, warp_destination_points, 720, 425);
+    perspective.perspectiveTransform(ROI_points, warp_destination_points, M, Minv); 
+    threshold.canny(frame, thresholded);
+    perspective.perspectiveWarp(thresholded, warped, M);
+
+    dst = warped;
+}
 
 int main() 
 {
-    Threshold threshold;
-    PerspectiveTransform perspective;
-
-    cv::Mat image = cv::imread("./images/test2.jpg", 1);
-    std::cout << "Number of channels: " << image.channels();
-
     cv::namedWindow("test", cv::WINDOW_NORMAL);
 
     // Get test video
@@ -38,12 +57,74 @@ int main()
 
     // Display number of FPS
     std::cout << "Video frames per second: " << video_capture.get(cv::CAP_PROP_FPS) << std::endl;
-    cv::Mat thresholded, abs_sobel, hls[3];
-    cv::Mat warped, unwarped;
-
-    int counter = 0;
 
 #ifdef USE_THREADS
+#ifdef USE_THREAD_POOL
+    bool process = true;
+    
+    QueueFPS<cv::Mat> framesQueue;
+    std::thread framesThread([&](){
+        cv::Mat frame;
+        while (process)
+        {
+            video_capture >> frame;
+            if (!frame.empty())
+            {
+                framesQueue.push(frame.clone());
+            }
+            else
+            {
+                break;
+            }
+        }
+    });
+
+    
+    ThreadPool pool(thread_number);
+
+    while (true)
+    {
+        cv::Mat frame, res;
+
+        while (processedFramesQueue.size() > 0)
+        {
+            res = processedFramesQueue.get();
+            cv::imshow("test", res);
+        }
+
+        if (processedFramesQueue.size() < thread_number)
+        {
+            if (!framesQueue.empty())
+            {
+                frame = framesQueue.get();
+            }
+            cv::Mat processed_frame;
+            if (!frame.empty())
+            {
+                pool.enqueue([frame] {
+                    std::vector<cv::Point2f> ROI_points, warp_destination_points;
+                    cv::Mat M, Minv;          
+
+                    perspective.calculateWarpPoints(frame, ROI_points, warp_destination_points, 720, 425);
+                    perspective.perspectiveTransform(ROI_points, warp_destination_points, M, Minv); 
+                    threshold.canny(frame, thresholded);
+                    perspective.perspectiveWarp(thresholded, warped, M);
+
+                    processedFramesQueue.push(thresholded);
+                });
+            }
+        }
+
+        if (cv::waitKey(1) == 27)
+        {
+            break;
+        }
+    }
+
+    process = false;
+    framesThread.join();
+    cv::destroyAllWindows();
+#else
     bool process = true;
 
     QueueFPS<cv::Mat> framesQueue;
@@ -54,8 +135,7 @@ int main()
             video_capture >> frame;
             if (!frame.empty())
             {
-                    framesQueue.push(frame.clone());
-
+                framesQueue.push(frame.clone());
             }
             else
             {
@@ -65,7 +145,6 @@ int main()
     });
 
     QueueFPS<cv::Mat> processedFramesQueue;
-    QueueFPS<std::vector<cv::Mat>> predictionsQueue;
     std::thread processingThread([&](){
         std::queue<cv::AsyncArray> futureOutputs;
         cv::Mat blob;
@@ -77,7 +156,6 @@ int main()
             if (!framesQueue.empty())
             {
                 frame = framesQueue.get();
-                counter++;
             }
 
             if (!frame.empty())
@@ -91,7 +169,7 @@ int main()
                 perspective.perspectiveWarp(thresholded, warped, M);
                 // cv::warpPerspective(warped, unwarped, Minv, warped.size(), cv::INTER_LINEAR);
                 // threshold.combined(frame, thresholded);
-                processedFramesQueue.push(frame);
+                processedFramesQueue.push(thresholded);
                 // std::cout << framesQueue.size() << std::endl;
             }
         }
@@ -103,22 +181,21 @@ int main()
         cv::Mat frame;
         if(!processedFramesQueue.empty()){
             frame = processedFramesQueue.get();
-            // std::cout << "Frames Queue FPS:" << framesQueue.getFPS() << std::endl;
-            // std::cout << "Processed Frames Queue FPS:" << processedFramesQueue.getFPS() << std::endl;
-            // std::cout << "==============================" << std::endl;
-
+            std::cout << "Frames Queue FPS:" << framesQueue.getFPS() << std::endl;
+            std::cout << "Processed Frames Queue FPS:" << processedFramesQueue.getFPS() << std::endl;
+            std::cout << "==============================" << std::endl;
 
             imshow("test", frame);
             auto end_time = std::chrono::high_resolution_clock::now();
             int elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
             // std::cout << elapsed_time << std::endl;
 
-            std::cout << "FPS: " << (video_capture.get(cv::CAP_PROP_FRAME_COUNT) / elapsed_time) << std::endl;
+            // std::cout << "FPS: " << (video_capture.get(cv::CAP_PROP_FRAME_COUNT) / elapsed_time) << std::endl;
         }
 
         
 
-        if (cv::waitKey(1) == 27)
+        if (cv::waitKey() == 27)
         {
             break;
         }
@@ -127,8 +204,7 @@ int main()
     process = false;
     framesThread.join();
     processingThread.join();
-
-    std::cout << processedFramesQueue.size() << std::endl;
+#endif
 
 #else
     for (int frame_index = 0; frame_index < (int)video_capture.get(cv::CAP_PROP_FRAME_COUNT); frame_index++)
