@@ -21,17 +21,12 @@ Threshold threshold;
 PerspectiveTransform perspective;
 
 cv::Mat thresholded, abs_sobel, hls[3];
-cv::Mat warped, unwarped;    
-
-void idk(QueueFPS<cv::Mat> queue, std::function<void()>)
-{
-
-}
+cv::Mat warped, unwarped;   
 
 int main() 
 {
     // Get test video
-    cv::VideoCapture video_capture("./test_videos/project_video_340.mp4");
+    cv::VideoCapture video_capture("./test_videos/project_video_lower_res.mp4");
 
     // If it can't be opened, return error message and exit
     if (video_capture.isOpened() == false) 
@@ -77,7 +72,7 @@ int main()
 
             if (!frame.empty())
             {
-                threshold.combined(frame, thresholded); 
+                threshold.canny(frame, thresholded); 
 
                 thresholdedFramesQueue.push(thresholded);
             }
@@ -156,11 +151,12 @@ int main()
         {
             std::vector<cv::Point2f> ROI_points, warp_destination_points;
             cv::Mat M, Minv;          
-
-            // perspective.calculateWarpPoints(frame, ROI_points, warp_destination_points, 720, 425);
-            // perspective.perspectiveTransform(ROI_points, warp_destination_points, M, Minv); 
-            threshold.canny(frame, thresholded);
-            // perspective.perspectiveWarp(thresholded, warped, M);
+            threshold.combined(frame, thresholded);
+            perspective.calculateWarpPoints(frame, ROI_points, warp_destination_points);
+            perspective.perspectiveTransform(ROI_points, warp_destination_points, M, Minv); 
+            perspective.perspectiveWarp(thresholded, warped, M);
+            
+            
             // cv::warpPerspective(warped, unwarped, Minv, warped.size(), cv::INTER_LINEAR);
             // threshold.combined(frame, thresholded);
         }
