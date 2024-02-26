@@ -6,12 +6,12 @@ void PerspectiveTransform::calculateWarpPoints(const cv::Mat& image, std::vector
     int w = image.cols;
 
     // Calculate the vertices of the region of interest
-    src.push_back(cv::Point2f(w, h-10));
-    src.push_back(cv::Point2f(0, h-10));
+    src.push_back(cv::Point2f(w, h-5));
+    src.push_back(cv::Point2f(0, h-5));
     // src.push_back(cv::Point2f(546, 460));
     // src.push_back(cv::Point2f(732, 460));
-    src.push_back(cv::Point2f(354, 305));
-    src.push_back(cv::Point2f(500, 305));
+    src.push_back(cv::Point2f(340, 305));
+    src.push_back(cv::Point2f(514, 305));
 
     // Calculate the destination points of the warp
     dst.push_back(cv::Point2f(w, h));
