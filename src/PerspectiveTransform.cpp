@@ -1,6 +1,6 @@
 #include "PerspectiveTransform.hpp"
 
-void PerspectiveTransform::calculateWarpPoints(const cv::Mat& image, std::vector<cv::Point2f>& src, std::vector<cv::Point2f>& dst)
+void calculateWarpPoints(const cv::Mat& image, std::vector<cv::Point2f>& src, std::vector<cv::Point2f>& dst)
 {
     int h = image.rows;
     int w = image.cols;
@@ -10,8 +10,8 @@ void PerspectiveTransform::calculateWarpPoints(const cv::Mat& image, std::vector
     src.push_back(cv::Point2f(0, h-5));
     // src.push_back(cv::Point2f(546, 460));
     // src.push_back(cv::Point2f(732, 460));
-    src.push_back(cv::Point2f(340, 305));
-    src.push_back(cv::Point2f(514, 305));
+    src.push_back(cv::Point2f(358, 305));
+    src.push_back(cv::Point2f(496, 305));
 
     // Calculate the destination points of the warp
     dst.push_back(cv::Point2f(w, h));
@@ -22,7 +22,7 @@ void PerspectiveTransform::calculateWarpPoints(const cv::Mat& image, std::vector
     return;
 }
 
-void PerspectiveTransform::perspectiveTransform(std::vector<cv::Point2f>& src, std::vector<cv::Point2f>& dst, cv::Mat& M, cv::Mat& Minv)
+void perspectiveTransform(std::vector<cv::Point2f>& src, std::vector<cv::Point2f>& dst, cv::Mat& M, cv::Mat& Minv)
 {
     M = cv::getPerspectiveTransform(src, dst);
     Minv = cv::getPerspectiveTransform(dst, src);
@@ -30,7 +30,7 @@ void PerspectiveTransform::perspectiveTransform(std::vector<cv::Point2f>& src, s
     return;
 }
 
-void PerspectiveTransform::perspectiveWarp(cv::Mat& image, cv::Mat& dst, cv::Mat& M)
+void perspectiveWarp(cv::Mat& image, cv::Mat& dst, cv::Mat& M)
 {
     cv::warpPerspective(image, dst, M, image.size(), cv::INTER_LINEAR);
 

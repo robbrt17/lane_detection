@@ -1,6 +1,6 @@
 #include "Threshold.hpp"
 
-void Threshold::absoluteSobel(cv::Mat const& src, cv::Mat& dest, char orient, int kernel_size, int thresh_min, int thresh_max)
+void absoluteSobel(cv::Mat const& src, cv::Mat& dest, char orient, int kernel_size, int thresh_min, int thresh_max)
 {
     // Convert to grayscale
     cv::Mat gray;
@@ -47,14 +47,14 @@ void Threshold::absoluteSobel(cv::Mat const& src, cv::Mat& dest, char orient, in
     cv::inRange(abs_sobel, thresh_min, thresh_max, dest);
 }
 
-void Threshold::canny(cv::Mat const& src, cv::Mat& dst)
+void canny(cv::Mat const& src, cv::Mat& dst)
 {
     cv::Mat blured;
     cv::GaussianBlur(src, blured, cv::Size(3, 3), 0, 0);
     cv::Canny(blured, dst, 100, 200, 3, false);
 }
 
-void Threshold::hls(cv::Mat const& src, cv::Mat& dst, uint8_t threshold_min, uint8_t threshold_max)
+void hls(cv::Mat const& src, cv::Mat& dst, uint8_t threshold_min, uint8_t threshold_max)
 {
     cv::Mat hls_img;
     cv::cvtColor(src, hls_img, cv::COLOR_BGR2HLS);
@@ -65,7 +65,7 @@ void Threshold::hls(cv::Mat const& src, cv::Mat& dst, uint8_t threshold_min, uin
     cv::inRange(hls_channels[2], 170, 255, dst);
 }
 
-void Threshold::hsv(cv::Mat const& src, cv::Mat& dst, uint8_t threshold_min, uint8_t threshold_max)
+void hsv(cv::Mat const& src, cv::Mat& dst, uint8_t threshold_min, uint8_t threshold_max)
 {
     cv::Mat hsv_img;
     cv::cvtColor(src, hsv_img, cv::COLOR_BGR2HSV);
@@ -73,7 +73,7 @@ void Threshold::hsv(cv::Mat const& src, cv::Mat& dst, uint8_t threshold_min, uin
     cv::inRange(hsv_img, threshold_min, threshold_max, dst);
 }
 
-void Threshold::binaryEqualizedGrayscale(cv::Mat const& src, cv::Mat& dst)
+void binaryEqualizedGrayscale(cv::Mat const& src, cv::Mat& dst)
 {
     cv::Mat gray, eq;
     cv::cvtColor(src, gray, cv::COLOR_RGB2GRAY);
@@ -83,13 +83,13 @@ void Threshold::binaryEqualizedGrayscale(cv::Mat const& src, cv::Mat& dst)
     cv::threshold(eq, dst, 250, 255, cv::THRESH_BINARY);
 }
 
-void Threshold::combined(cv::Mat const& img, cv::Mat& dst)
+void combined(cv::Mat const& img, cv::Mat& dst)
 {
     cv::Mat hls_bin, sobel, white_mask;
 
-    Threshold::hls(img, hls_bin, 170, 255);
+    hls(img, hls_bin, 170, 255);
     // Threshold::absoluteSobel(img, sobel, 'x', 3, 50, 255);
-    Threshold::canny(img, sobel);
+    canny(img, sobel);
     // Threshold::binaryEqualizedGrayscale(img, white_mask);
 
     dst = hls_bin | sobel;

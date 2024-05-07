@@ -1,4 +1,5 @@
 #include <iostream>
+#include <stdlib.h>
 #include <string>
 #include <thread>
 #include <mutex>
@@ -10,18 +11,17 @@
 #include "CameraCalibration.hpp"
 #include "PerspectiveTransform.hpp"
 #include "Threshold.hpp"
-#include "LaneDetector.hpp"
 #include "QueueFPS.hpp"
+#include "Utils.hpp"
 
 // #define USE_MULTIPLE_THREADS
-#define USE_2_THREADS
+// #define USE_2_THREADS
+// #define NO_THREADS
+#define TEST_ON_IMAGE
 
 int thread_number = 3;
 
-Threshold threshold;
-PerspectiveTransform perspective;
-
-cv::Mat thresholded, abs_sobel, hls[3];
+cv::Mat thresholded, abs_sobel;
 cv::Mat warped, unwarped;   
 
 int main() 
@@ -204,7 +204,7 @@ int main()
     processingThread.join();
     cv::destroyAllWindows();
 
-#else
+#elif defined(NO_THREADS)
     for (int frame_index = 0; frame_index < (int)video_capture.get(cv::CAP_PROP_FRAME_COUNT); frame_index++)
     {
         auto start_time = std::chrono::high_resolution_clock::now();
@@ -252,6 +252,72 @@ int main()
 
     video_capture.release();
     cv::destroyAllWindows();
+
+#else
+    cv::Mat img = cv::imread("images/test_lower_res.jpg");
+    if (img.empty()) {
+        return EXIT_FAILURE;
+    }
+    imshow("Original image", img);
+    cv::waitKey(0);
+
+    std::vector<cv::Point2f> ROI_points, warp_destination_points;
+    cv::Mat M, Minv;          
+    combined(img, thresholded);
+    calculateWarpPoints(img, ROI_points, warp_destination_points);
+    perspectiveTransform(ROI_points, warp_destination_points, M, Minv); 
+    perspectiveWarp(thresholded, warped, M);
+
+    imshow("Thresholded", thresholded);
+    cv::waitKey(0);
+    imshow("Warped", warped);
+    cv::waitKey(0);
+
+    cv::Mat histogram;
+    calculateHistogram(warped, histogram);
+    std::cout << histogram << std::endl;
+
+    int left_peak, right_peak;
+    findLaneHistogramPeaks(histogram, left_peak, right_peak);
+
+    plotHistogram(histogram, warped);
+
+    int num_of_windows = 9;
+    int window_height = warped.rows / num_of_windows;
+
+    std::vector<cv::Point> nonzero_points;
+    // cv::findNonZero(warped, nonzero_points);
+    // cv::Mat nonzero_points_mat(nonzero_points);
+    // cv::Mat nonzero_x = nonzero_points_mat.col(0);
+    // cv::Mat nonzero_y = nonzero_points_mat.col(1);
+
+    int margin = 100;
+    int minpix = 50;
+
+    std::vector<cv::Mat> left_lane_inds, right_lane_inds;
+
+
+    // cv::Mat win_result_img(warped.size(), CV_8UC3, cv::Scalar(0,0,0));
+    // cv::cvtColor(warped, win_result_img, cv::COLOR_GRAY2BGR);
+
+    for (int window = 0; window < num_of_windows; window++) {
+        int win_y_low = warped.rows - (window + 1) * window_height;
+        int win_y_high = warped.rows - window * window_height;
+        
+        int win_xleft_low = left_peak - margin;
+        int win_xleft_high = left_peak + margin;
+        int win_xright_low = right_peak - margin;
+        int win_xright_high = right_peak + margin;
+
+        // cv::rectangle(win_result_img, cv::Point(win_xleft_low, win_y_low), cv::Point(win_xleft_high, win_y_high), cv::Scalar(0,255,0), 2);
+        // cv::rectangle(win_result_img, cv::Point(win_xright_low, win_y_low), cv::Point(win_xright_high, win_y_high), cv::Scalar(0,255,0), 2);
+    }
+
+    // imshow("windows", win_result_img);
+    // cv::waitKey(0);
+
+    cv::destroyAllWindows();
+
 #endif
     return 0;
 }
