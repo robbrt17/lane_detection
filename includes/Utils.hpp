@@ -5,6 +5,32 @@
 #include <iostream>
 #include <algorithm>
 
+using namespace std;
+using namespace cv;
+
+void detectEdges(cv::Mat& src, cv::Mat& dst) {
+    cv::Mat hls;
+    cv::cvtColor(src, hls, cv::COLOR_RGB2HLS);
+
+    std::vector<cv::Mat> hls_channels;
+    cv::split(hls, hls_channels);
+    cv::Mat s_channel = hls_channels[2];
+
+    cv::Mat hls_binary_output = cv::Mat::zeros(s_channel.size(), CV_8U);
+    cv::inRange(s_channel, cv::Scalar(171), cv::Scalar(255), hls_binary_output);
+
+    cv::Mat gray;
+    cv::cvtColor(hls, gray, cv::COLOR_BGR2GRAY);
+
+    cv::Mat blurred;
+    cv::GaussianBlur(gray, blurred, cv::Size(5, 5), 0);
+
+    cv::Mat canny;
+    cv::Canny(blurred, canny, 100, 200);
+
+    dst = canny | hls_binary_output;
+}
+
 void calculateHistogram(cv::Mat& img, cv::Mat& histogram)
 {
     cv::Mat bottom_half = img.rowRange(img.rows / 2, img.cols / 2);
@@ -64,6 +90,57 @@ void plotHistogram(cv::Mat& histogram, cv::Mat& img) {
 
     imshow("hist1", black_img);
     cv::waitKey(0);
+}
+
+// cv::Mat polyfit(const std::vector<int>& x, const std::vector<int>& y, int degree) {
+//     // Number of data points
+//     int n = x.size();
+
+//     // Create the Vandermonde matrix
+//     cv::Mat A(n, degree + 1, CV_64F);
+//     cv::Mat Y(n, 1, CV_64F);
+
+//     // Fill the Vandermonde matrix and the Y matrix
+//     for (int i = 0; i < n; ++i) {
+//         Y.at<double>(i, 0) = y[i];
+//         for (int j = 0; j <= degree; ++j) {
+//             A.at<double>(i, j) = pow(x[i], j);
+//         }
+//     }
+
+//     // Solve for the coefficients using the normal equations
+//     cv::Mat A_transpose, A_transpose_A, A_transpose_Y;
+//     transpose(A, A_transpose);
+//     A_transpose_A = A_transpose * A;
+//     A_transpose_Y = A_transpose * Y;
+
+//     cv::Mat coefficients;
+//     solve(A_transpose_A, A_transpose_Y, coefficients, cv::DECOMP_SVD);
+
+//     return coefficients;
+// }
+
+// Function to perform polynomial fitting
+Mat polyfit(const std::vector<int>& x, const std::vector<int>& y, int degree) {
+    // Number of data points
+    int n = x.size();
+
+    // Create the Vandermonde matrix
+    Mat A(n, degree + 1, CV_64F);
+    Mat Y(n, 1, CV_64F);
+
+    for (int i = 0; i < n; ++i) {
+        Y.at<double>(i, 0) = y[i];
+        for (int j = 0; j <= degree; ++j) {
+            A.at<double>(i, j) = pow(x[i], j);
+        }
+    }
+
+    // Solve for the coefficients
+    Mat coefficients;
+    solve(A, Y, coefficients, DECOMP_SVD);
+
+    return coefficients;
 }
 
 #endif

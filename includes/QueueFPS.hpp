@@ -13,12 +13,44 @@
 template <typename T>
 class QueueFPS : public std::queue<T> {
     public:
-        QueueFPS();
+        QueueFPS() : counter(0) {}
 
-        void push(const T& entry);
-        T get();
-        float getFPS();
-        void clear();
+        void push(const T& entry) {
+            std::lock_guard<std::mutex> lock(mutex);
+            std::queue<T>::push(entry);
+            counter += 1;
+
+            if (counter == 1)
+            {
+                tm.reset();
+                tm.start();
+            }
+        }
+
+        T get() {
+            std::lock_guard<std::mutex> lock(mutex);
+
+            T entry = this->front();
+            this->pop();
+
+            return entry;
+        }
+
+        float getFPS() {
+            tm.stop();
+            double fps = counter / tm.getTimeSec();
+            tm.start();
+
+            return static_cast<float>(fps);
+        }
+
+        void clear() {
+            std::lock_guard<std::mutex> lock(mutex);
+            while (!this->empty())
+            {
+                this->pop();
+            }  
+        }
 
     private:
         unsigned int counter;

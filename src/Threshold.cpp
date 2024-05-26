@@ -87,12 +87,12 @@ void combined(cv::Mat const& img, cv::Mat& dst)
 {
     cv::Mat hls_bin, sobel, white_mask;
 
-    hls(img, hls_bin, 170, 255);
+    // hls(img, hls_bin, 170, 255);
     // Threshold::absoluteSobel(img, sobel, 'x', 3, 50, 255);
     canny(img, sobel);
     // Threshold::binaryEqualizedGrayscale(img, white_mask);
 
-    dst = hls_bin | sobel;
+    dst = sobel;
 
     // cv::Mat sobel_x, sobel_y, combined, hls_bin;
     // // Threshold::absoluteSobel(img, sobel_x, 'x', 3, 50, 255);
