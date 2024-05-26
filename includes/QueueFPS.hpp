@@ -25,10 +25,16 @@ class QueueFPS : public std::queue<T> {
                 tm.reset();
                 tm.start();
             }
+
+            cv.notify_one();
         }
 
         T get() {
-            std::lock_guard<std::mutex> lock(mutex);
+            std::unique_lock<std::mutex> lock(mutex);
+            
+            cv.wait(lock, [this]() {
+                return !this->empty();
+            });
 
             T entry = this->front();
             this->pop();
@@ -37,10 +43,10 @@ class QueueFPS : public std::queue<T> {
         }
 
         float getFPS() {
+            std::lock_guard<std::mutex> lock(mutex);
             tm.stop();
             double fps = counter / tm.getTimeSec();
             tm.start();
-
             return static_cast<float>(fps);
         }
 
@@ -56,6 +62,7 @@ class QueueFPS : public std::queue<T> {
         unsigned int counter;
         cv::TickMeter tm;
         std::mutex mutex;
+        std::condition_variable cv;
 };
 
 #endif
