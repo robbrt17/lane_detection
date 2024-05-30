@@ -314,8 +314,9 @@ void pipeline(cv::Mat& src, cv::Mat& dst) {
     cv::Mat warped, unwarped; 
     std::vector<cv::Point2f> ROI_points, warp_destination_points;
     cv::Mat M, Minv;          
-    // detectEdges(img, thresholded);
-    canny(src, thresholded);
+
+    detectEdges(src, thresholded);
+    // canny(src, thresholded);
     calculateWarpPoints(src, ROI_points, warp_destination_points);
     perspectiveTransform(ROI_points, warp_destination_points, M, Minv); 
     perspectiveWarp(thresholded, warped, M);
@@ -354,18 +355,6 @@ void pipeline(cv::Mat& src, cv::Mat& dst) {
 
     // plotLinesOnWarped(warped, ploty, left_fitx, right_fitx);
     plotMarkedLane(src, warped, Minv, ploty, left_fitx, right_fitx, dst);
-}
-
-void getFPS(std::chrono::steady_clock::time_point &start, int &frame_count, double &fps) {
-    frame_count++;
-    auto end = std::chrono::steady_clock::now();
-    std::chrono::duration<double> elapsed = end - start;
-
-    if (elapsed.count() >= 1.0) {
-        fps = frame_count / elapsed.count();
-        frame_count = 0;
-        start = end;
-    }
 }
 
 #endif

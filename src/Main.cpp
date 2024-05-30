@@ -8,16 +8,10 @@
 #include <opencv2/videoio.hpp>
 #include <opencv2/imgproc.hpp>
 #include <filesystem>
-#include "QueueFPS.hpp"
 #include "Utils.hpp"
 
-using namespace std;
-using namespace cv;
+#define USE_THREADS
 
-// #define USE_MULTIPLE_THREADS
-#define USE_2_THREADS
-// #define NO_THREADS
-// #define TEST_ON_IMAGE
 cv::Mat thresholded, abs_sobel;
 cv::Mat warped, unwarped;   
 
@@ -38,7 +32,7 @@ int main()
     std::cout << "Video frames per second: " << video_capture.get(cv::CAP_PROP_FPS) << std::endl;
 
 
-#ifdef USE_2_THREADS
+#ifdef USE_THREADS
 
     cv::VideoWriter videoWriter;
     double fps = 30.0;
@@ -91,16 +85,14 @@ int main()
                 auto processStart = std::chrono::steady_clock::now();
 
                 pipeline(frame, output);
-                getFPS(start, frame_count, fps_show);
-
-                std::cout << std::to_string(fps) << std::endl;
 
                 auto processEnd = std::chrono::steady_clock::now();
                 std::chrono::duration<double> processDuration = processEnd - processStart;
                 // Adjust waitKey delay to account for processing time, ensuring a minimal delay
                 int delay = std::max(1, 30 - static_cast<int>(processDuration.count() * 1000));
 
-                imshow("Final frame:", output);
+                videoWriter.write(output);
+                // imshow("Final frame:", output);
 
                 if (cv::waitKey(delay) == 27) {
                     process = false;
@@ -111,6 +103,7 @@ int main()
 
     readThread.join();
     processThread.join();
+    videoWriter.release();
     cv::destroyAllWindows();
 
 #else
@@ -164,7 +157,8 @@ int main()
 
     plotLinesOnWarped(warped, ploty, left_fitx, right_fitx);
 
-    plotMarkedLane(img, warped, Minv, ploty, left_fitx, right_fitx);
+    cv::Mat output;
+    plotMarkedLane(img, warped, Minv, ploty, left_fitx, right_fitx, output);
 
     cv::destroyAllWindows();
 
