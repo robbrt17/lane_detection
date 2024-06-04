@@ -10,7 +10,7 @@
 #include <filesystem>
 #include "Utils.hpp"
 
-#define USE_THREADS
+// #define USE_THREADS
 
 cv::Mat thresholded, abs_sobel;
 cv::Mat warped, unwarped;   
@@ -107,7 +107,7 @@ int main()
     cv::destroyAllWindows();
 
 #else
-    cv::Mat img = cv::imread("images/test5.jpg");
+    cv::Mat img = cv::imread("images/test6.jpg");
     if (img.empty()) {
         return EXIT_FAILURE;
     }
@@ -117,8 +117,8 @@ int main()
 
     std::vector<cv::Point2f> ROI_points, warp_destination_points;
     cv::Mat M, Minv;          
-    // detectEdges(img, thresholded);
-    canny(img, thresholded);
+    detectEdges(img, thresholded);
+    // canny(img, thresholded);
     calculateWarpPoints(img, ROI_points, warp_destination_points);
     perspectiveTransform(ROI_points, warp_destination_points, M, Minv); 
     perspectiveWarp(thresholded, warped, M);

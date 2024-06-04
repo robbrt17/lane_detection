@@ -5,34 +5,61 @@
 #include <iostream>
 #include <algorithm>
 
+#define PLOT_FLAG 0
+
+using namespace cv;
+
 void detectEdges(cv::Mat& src, cv::Mat& dst) {
-    cv::Mat hls;
-    cv::cvtColor(src, hls, cv::COLOR_RGB2HLS);
+    // Convert the image to grayscale
+    Mat gray;
+    cvtColor(src, gray, COLOR_BGR2GRAY);
 
-    std::vector<cv::Mat> hls_channels;
-    cv::split(hls, hls_channels);
-    cv::Mat s_channel = hls_channels[2];
+    // Apply GaussianBlur to reduce noise and improve edge detection
+    Mat blurred;
+    GaussianBlur(gray, blurred, Size(5, 5), 0, 0);
 
-    cv::Mat hls_binary_output = cv::Mat::zeros(s_channel.size(), CV_8U);
-    cv::inRange(s_channel, cv::Scalar(170), cv::Scalar(255), hls_binary_output);
+    // Apply Canny edge detection
+    Mat edges;
+    Canny(blurred, edges, 100, 150, 3, 0);
 
-    cv::Mat gray;
-    cv::cvtColor(hls, gray, cv::COLOR_BGR2GRAY);
+    // Convert the original image to HSV color space
+    Mat hsv;
+    cvtColor(src, hsv, COLOR_BGR2HSV);
 
-    // cv::Mat blurred;
-    // cv::GaussianBlur(gray, blurred, cv::Size(5, 5), 0);
+    // Define HSV range for lane colors (you may need to adjust these values)
+    Scalar lowerWhite = Scalar(0, 0, 200);
+    Scalar upperWhite = Scalar(180, 25, 255);
 
-    cv::Mat canny;
-    cv::Canny(gray, canny, 100, 200);
+    // Define HSV range for yellow lanes (you may need to adjust these values)
+    Scalar lowerYellow = Scalar(18, 94, 140);
+    Scalar upperYellow = Scalar(30, 255, 255);
 
-    dst = canny | hls_binary_output;
+    // Threshold the HSV image to get only white colors
+    Mat whiteMask;
+    inRange(hsv, lowerWhite, upperWhite, whiteMask);
+
+    // Threshold the HSV image to get only yellow colors
+    Mat yellowMask;
+    inRange(hsv, lowerYellow, upperYellow, yellowMask);
+
+    // Combine the white and yellow masks
+    Mat combinedMask;
+    bitwise_or(whiteMask, yellowMask, combinedMask);
+
+    // Combine Canny edges and HSV mask
+    Mat combined;
+    bitwise_or(edges, combinedMask, combined);
+
+    // Copy the result to output image
+    dst = combined.clone();
 }
+
 
 void canny(cv::Mat const& src, cv::Mat& dst)
 {
     cv::Mat blured;
-    cv::GaussianBlur(src, blured, cv::Size(3, 3), 0, 0);
-    cv::Canny(blured, dst, 100, 200, 3, false);
+    cv::GaussianBlur(src, blured, cv::Size(5, 5), 0, 0);
+    cv::Canny(blured, dst, 100, 150, 3, false);
 }
 
 void calculateWarpPoints(const cv::Mat& image, std::vector<cv::Point2f>& src, std::vector<cv::Point2f>& dst)
@@ -191,7 +218,7 @@ void fitPolyToLaneLines(cv::Mat& warped, int left_peak, int right_peak, cv::Mat&
     int leftx_current = left_peak;
     int rightx_current = right_peak;
 
-    for (int window = 0; window < num_of_windows; window++) {
+    for (int window = 0; window < num_of_windows; window++) { 
         // Set window boundaries
         int win_y_low = warped.rows - (window + 1) * window_height;
         int win_y_high = warped.rows - window * window_height;
@@ -202,8 +229,8 @@ void fitPolyToLaneLines(cv::Mat& warped, int left_peak, int right_peak, cv::Mat&
         int win_xright_high = rightx_current + margin;
 
         // Draw windows
-        cv::rectangle(win_result_img, cv::Point(win_xleft_low, win_y_low), cv::Point(win_xleft_high, win_y_high), cv::Scalar(0,255,0), 2);
-        cv::rectangle(win_result_img, cv::Point(win_xright_low, win_y_low), cv::Point(win_xright_high, win_y_high), cv::Scalar(0,255,0), 2);
+        cv::rectangle(warped, cv::Point(win_xleft_low, win_y_low), cv::Point(win_xleft_high, win_y_high), cv::Scalar(0,255,0), 2);
+        cv::rectangle(warped, cv::Point(win_xright_low, win_y_low), cv::Point(win_xright_high, win_y_high), cv::Scalar(0,255,0), 2);
 
         std::vector<int> good_left_inds, good_right_inds;
         for (size_t i = 0; i < nonzero_x.size(); i++) {
@@ -238,8 +265,10 @@ void fitPolyToLaneLines(cv::Mat& warped, int left_peak, int right_peak, cv::Mat&
         }
     }
 
-    // imshow("Windows", win_result_img);
-    // cv::waitKey(0);
+    if (PLOT_FLAG) {
+        imshow("Windows", win_result_img);
+        cv::waitKey(0);
+    }
 
     // Extract left and right line pixel positions
     std::vector<int> leftx, lefty, rightx, righty;
@@ -273,9 +302,11 @@ void plotLinesOnWarped(cv::Mat warped, std::vector<int> ploty, std::vector<int> 
     polylines(lane_lines, &left_polyline_data, &num_points, 1, false, cv::Scalar(0, 255, 0), 5);
     polylines(lane_lines, &right_polyline_data, &num_points, 1, false, cv::Scalar(0, 255, 0), 5);
 
-    // Display results
-    imshow("Lane Lines", lane_lines);
-    cv::waitKey(0);
+    if (PLOT_FLAG) {
+        // Display results
+        imshow("Lane Lines", lane_lines);
+        cv::waitKey(0);
+    }
 }
 
 void plotMarkedLane(cv::Mat initial_image, cv::Mat warped, cv::Mat Minv, std::vector<int> ploty, std::vector<int> left_fitx, std::vector<int> right_fitx, cv::Mat& dst) {
@@ -304,9 +335,12 @@ void plotMarkedLane(cv::Mat initial_image, cv::Mat warped, cv::Mat Minv, std::ve
     // Blend the lane area with the original image
     cv::addWeighted(initial_image, 1, new_warp, 0.3, 0, dst);
 
-    // // Display the final image with the filled lane area
-    // cv::imshow("Lane Area on Original Image", result);
-    // cv::waitKey(0);
+    if (PLOT_FLAG) {
+        // Display the final image with the filled lane area
+        cv::imshow("Lane Area on Original Image", dst);
+        cv::waitKey(0);
+    }
+    
 }
 
 void pipeline(cv::Mat& src, cv::Mat& dst) {
