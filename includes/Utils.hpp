@@ -5,87 +5,64 @@
 #include <iostream>
 #include <algorithm>
 
-#define PLOT_FLAG 0
-
-using namespace cv;
+#define PLOT_FLAG 1
 
 void detectEdges(cv::Mat& src, cv::Mat& dst) {
     // Convert the image to grayscale
-    Mat gray;
-    cvtColor(src, gray, COLOR_BGR2GRAY);
+    cv::Mat gray;
+    cv::cvtColor(src, gray, cv::COLOR_BGR2GRAY);
 
     // Apply GaussianBlur to reduce noise and improve edge detection
-    Mat blurred;
-    GaussianBlur(gray, blurred, Size(5, 5), 0, 0);
+    cv::Mat blurred;
+    cv::GaussianBlur(gray, blurred, cv::Size(5, 5), 0, 0);
 
     // Apply Canny edge detection
-    Mat edges;
-    Canny(blurred, edges, 100, 150, 3, 0);
+    cv::Mat edges;
+    cv::Canny(blurred, edges, 100, 150, 3, 0);
 
     // Convert the original image to HSV color space
-    Mat hsv;
-    cvtColor(src, hsv, COLOR_BGR2HSV);
+    cv::Mat hsv;
+    cv::cvtColor(src, hsv, cv::COLOR_BGR2HSV);
 
     // Define HSV range for lane colors (you may need to adjust these values)
-    Scalar lowerWhite = Scalar(0, 0, 200);
-    Scalar upperWhite = Scalar(180, 25, 255);
+    cv::Scalar lowerWhite = cv::Scalar(0, 0, 200);
+    cv::Scalar upperWhite = cv::Scalar(180, 25, 255);
 
     // Define HSV range for yellow lanes (you may need to adjust these values)
-    Scalar lowerYellow = Scalar(18, 94, 140);
-    Scalar upperYellow = Scalar(30, 255, 255);
+    cv::Scalar lowerYellow = cv::Scalar(18, 94, 140);
+    cv::Scalar upperYellow = cv::Scalar(30, 255, 255);
 
     // Threshold the HSV image to get only white colors
-    Mat whiteMask;
-    inRange(hsv, lowerWhite, upperWhite, whiteMask);
+    cv::Mat whiteMask;
+    cv::inRange(hsv, lowerWhite, upperWhite, whiteMask);
 
     // Threshold the HSV image to get only yellow colors
-    Mat yellowMask;
-    inRange(hsv, lowerYellow, upperYellow, yellowMask);
+    cv::Mat yellowMask;
+    cv::inRange(hsv, lowerYellow, upperYellow, yellowMask);
 
     // Combine the white and yellow masks
-    Mat combinedMask;
-    bitwise_or(whiteMask, yellowMask, combinedMask);
+    cv::Mat combinedMask;
+    cv::bitwise_or(whiteMask, yellowMask, combinedMask);
 
     // Combine Canny edges and HSV mask
-    Mat combined;
-    bitwise_or(edges, combinedMask, combined);
+    cv::Mat combined;
+    cv::bitwise_or(edges, combinedMask, combined);
 
     // Copy the result to output image
     dst = combined.clone();
 }
 
 
-void canny(cv::Mat const& src, cv::Mat& dst)
-{
+void canny(cv::Mat const& src, cv::Mat& dst) {
     cv::Mat blured;
     cv::GaussianBlur(src, blured, cv::Size(5, 5), 0, 0);
     cv::Canny(blured, dst, 100, 150, 3, false);
 }
 
-void calculateWarpPoints(const cv::Mat& image, std::vector<cv::Point2f>& src, std::vector<cv::Point2f>& dst)
-{
-    int h = image.rows;
-    int w = image.cols;
-
-    // // Calculate the vertices of the region of interest
-    // src.push_back(cv::Point2f(w, h-5));
-    // src.push_back(cv::Point2f(0, h-5));
-    // // src.push_back(cv::Point2f(546, 460));
-    // // src.push_back(cv::Point2f(732, 460));
-    // src.push_back(cv::Point2f(358, 305));
-    // src.push_back(cv::Point2f(496, 305));
-
-    // // Calculate the destination points of the warp
-    // dst.push_back(cv::Point2f(w, h));
-    // dst.push_back(cv::Point2f(0, h));
-    // dst.push_back(cv::Point2f(0, 0));
-    // dst.push_back(cv::Point2f(w, 0));
-
+void calculateWarpPoints(const cv::Mat& image, std::vector<cv::Point2f>& src, std::vector<cv::Point2f>& dst) {
     // Calculate the vertices of the region of interest
     src.push_back(cv::Point2f(200, 720));
     src.push_back(cv::Point2f(1100, 720));
-    // src.push_back(cv::Point2f(546, 460));
-    // src.push_back(cv::Point2f(732, 460));
     src.push_back(cv::Point2f(595, 450));
     src.push_back(cv::Point2f(685, 450));
 
@@ -98,23 +75,20 @@ void calculateWarpPoints(const cv::Mat& image, std::vector<cv::Point2f>& src, st
     return;
 }
 
-void perspectiveTransform(std::vector<cv::Point2f>& src, std::vector<cv::Point2f>& dst, cv::Mat& M, cv::Mat& Minv)
-{
+void perspectiveTransform(std::vector<cv::Point2f>& src, std::vector<cv::Point2f>& dst, cv::Mat& M, cv::Mat& Minv) {
     M = cv::getPerspectiveTransform(src, dst);
     Minv = cv::getPerspectiveTransform(dst, src);
     
     return;
 }
 
-void perspectiveWarp(cv::Mat& image, cv::Mat& dst, cv::Mat& M)
-{
+void perspectiveWarp(cv::Mat& image, cv::Mat& dst, cv::Mat& M) {
     cv::warpPerspective(image, dst, M, image.size(), cv::INTER_LINEAR);
 
     return;
 }
 
-void calculateHistogram(cv::Mat& img, cv::Mat& histogram)
-{
+void calculateHistogram(cv::Mat& img, cv::Mat& histogram) {
     cv::Mat bottom_half = img.rowRange(img.rows / 2, img.cols / 2);
     cv::reduce(bottom_half / 255, histogram, 0, cv::REDUCE_SUM, CV_32S);
 }
@@ -229,8 +203,8 @@ void fitPolyToLaneLines(cv::Mat& warped, int left_peak, int right_peak, cv::Mat&
         int win_xright_high = rightx_current + margin;
 
         // Draw windows
-        cv::rectangle(warped, cv::Point(win_xleft_low, win_y_low), cv::Point(win_xleft_high, win_y_high), cv::Scalar(0,255,0), 2);
-        cv::rectangle(warped, cv::Point(win_xright_low, win_y_low), cv::Point(win_xright_high, win_y_high), cv::Scalar(0,255,0), 2);
+        cv::rectangle(win_result_img, cv::Point(win_xleft_low, win_y_low), cv::Point(win_xleft_high, win_y_high), cv::Scalar(0,255,0), 2);
+        cv::rectangle(win_result_img, cv::Point(win_xright_low, win_y_low), cv::Point(win_xright_high, win_y_high), cv::Scalar(0,255,0), 2);
 
         std::vector<int> good_left_inds, good_right_inds;
         for (size_t i = 0; i < nonzero_x.size(); i++) {
@@ -350,15 +324,16 @@ void pipeline(cv::Mat& src, cv::Mat& dst) {
     cv::Mat M, Minv;          
 
     detectEdges(src, thresholded);
-    // canny(src, thresholded);
     calculateWarpPoints(src, ROI_points, warp_destination_points);
     perspectiveTransform(ROI_points, warp_destination_points, M, Minv); 
     perspectiveWarp(thresholded, warped, M);
 
-    // imshow("Thresholded", thresholded);
-    // cv::waitKey(0);
-    // imshow("Warped", warped);
-    // cv::waitKey(0);
+    if (PLOT_FLAG) {
+        imshow("Thresholded", thresholded);
+        cv::waitKey(0);
+        imshow("Warped", warped);
+        cv::waitKey(0);    
+    }
 
     cv::Mat histogram;
     calculateHistogram(warped, histogram);
@@ -366,8 +341,10 @@ void pipeline(cv::Mat& src, cv::Mat& dst) {
     int left_peak, right_peak;
     findLaneHistogramPeaks(histogram, left_peak, right_peak);
 
-    // plotHistogram(histogram, warped);
-
+    if (PLOT_FLAG) {
+        plotHistogram(histogram, warped);
+    }
+    
     cv::Mat left_fit, right_fit;
     fitPolyToLaneLines(warped, left_peak, right_peak, left_fit, right_fit);
 
@@ -387,8 +364,10 @@ void pipeline(cv::Mat& src, cv::Mat& dst) {
                         right_fit.at<double>(0, 0);
     }
 
-    // plotLinesOnWarped(warped, ploty, left_fitx, right_fitx);
-    plotMarkedLane(src, warped, Minv, ploty, left_fitx, right_fitx, dst);
+    if (PLOT_FLAG) {
+        plotLinesOnWarped(warped, ploty, left_fitx, right_fitx);
+        plotMarkedLane(src, warped, Minv, ploty, left_fitx, right_fitx, dst);
+    }
 }
 
 #endif

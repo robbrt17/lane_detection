@@ -17,8 +17,9 @@ cv::Mat warped, unwarped;
 
 int main() 
 {
+#ifdef USE_THREADS
     // Get test video
-    cv::VideoCapture video_capture("./test_videos/project_video.mp4");
+    cv::VideoCapture video_capture("/home/robebala/stuff/licenta/lane_detection/test_videos/project_video.mp4");
 
     // If it can't be opened, return error message and exit
     if (video_capture.isOpened() == false) 
@@ -30,10 +31,7 @@ int main()
 
     // Display number of FPS
     std::cout << "Video frames per second: " << video_capture.get(cv::CAP_PROP_FPS) << std::endl;
-
-
-#ifdef USE_THREADS
-
+    
     cv::VideoWriter videoWriter;
     double fps = 30.0;
     cv::Size frame_size(1280, 720);
@@ -107,58 +105,16 @@ int main()
     cv::destroyAllWindows();
 
 #else
-    cv::Mat img = cv::imread("images/test6.jpg");
+    cv::Mat img = cv::imread("/home/robebala/stuff/licenta/lane_detection/images/test5.jpg");
     if (img.empty()) {
         return EXIT_FAILURE;
     }
+    cv::Mat output;
     imshow("Original image", img);
     cv::waitKey(0);
     std::cout << "Image size: " << img.size() << std::endl;
 
-    std::vector<cv::Point2f> ROI_points, warp_destination_points;
-    cv::Mat M, Minv;          
-    detectEdges(img, thresholded);
-    // canny(img, thresholded);
-    calculateWarpPoints(img, ROI_points, warp_destination_points);
-    perspectiveTransform(ROI_points, warp_destination_points, M, Minv); 
-    perspectiveWarp(thresholded, warped, M);
-
-    imshow("Thresholded", thresholded);
-    cv::waitKey(0);
-    imshow("Warped", warped);
-    cv::waitKey(0);
-
-    cv::Mat histogram;
-    calculateHistogram(warped, histogram);
-
-    int left_peak, right_peak;
-    findLaneHistogramPeaks(histogram, left_peak, right_peak);
-
-    plotHistogram(histogram, warped);
-
-    cv::Mat left_fit, right_fit;
-    fitPolyToLaneLines(warped, left_peak, right_peak, left_fit, right_fit);
-
-    // Generate x and y values for plotting
-    std::vector<int> ploty(warped.rows);
-    for (size_t i = 0; i < ploty.size(); ++i) {
-        ploty[i] = static_cast<int>(i);
-    }
-    std::vector<int> left_fitx(ploty.size());
-    std::vector<int> right_fitx(ploty.size());
-    for (size_t i = 0; i < ploty.size(); ++i) {
-        left_fitx[i] = left_fit.at<double>(2, 0) * ploty[i] * ploty[i] +
-                       left_fit.at<double>(1, 0) * ploty[i] +
-                       left_fit.at<double>(0, 0);
-        right_fitx[i] = right_fit.at<double>(2, 0) * ploty[i] * ploty[i] +
-                        right_fit.at<double>(1, 0) * ploty[i] +
-                        right_fit.at<double>(0, 0);
-    }
-
-    plotLinesOnWarped(warped, ploty, left_fitx, right_fitx);
-
-    cv::Mat output;
-    plotMarkedLane(img, warped, Minv, ploty, left_fitx, right_fitx, output);
+    pipeline(img, output);
 
     cv::destroyAllWindows();
 
