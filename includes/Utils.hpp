@@ -5,7 +5,36 @@
 #include <iostream>
 #include <algorithm>
 
-#define PLOT_FLAG 1
+#define PLOT_FLAG 0
+#define SAVE_IMAGE_FLAG 1
+
+void displayComparison(cv::Mat& img1, cv::Mat& img2) {
+    cv::Mat img2_resized, img2_converted;
+
+    // Ensure both images have the same size
+    if (img1.size() != img2.size()) {
+        cv::resize(img2, img2_resized, img1.size());
+    } else {
+        img2_resized = img2;
+    }
+
+    // Convert the grayscale image to a 3-channel image
+    if (img1.type() == CV_8UC3 && img2_resized.type() == CV_8UC1) {
+        cv::cvtColor(img2_resized, img2_converted, cv::COLOR_GRAY2BGR);
+    } else {
+        img2_converted = img2_resized;
+    }
+
+    // Concatenate the images horizontally
+    cv::Mat comparison;
+    cv::hconcat(img1, img2_converted, comparison);
+
+    // Display the concatenated image
+    cv::imshow("Comparison", comparison);
+    cv::waitKey(0);
+
+    cv::imwrite("comparison.png", comparison);
+}
 
 void detectEdges(cv::Mat& src, cv::Mat& dst) {
     // Convert the image to grayscale
@@ -89,7 +118,9 @@ void perspectiveWarp(cv::Mat& image, cv::Mat& dst, cv::Mat& M) {
 }
 
 void calculateHistogram(cv::Mat& img, cv::Mat& histogram) {
-    cv::Mat bottom_half = img.rowRange(img.rows / 2, img.cols / 2);
+    // Select bottom half of the image
+    cv::Mat bottom_half = img.rowRange(img.rows / 2, img.rows);
+    // Normalize pixel values, sum them up and reduce to a single row matrix
     cv::reduce(bottom_half / 255, histogram, 0, cv::REDUCE_SUM, CV_32S);
 }
 
@@ -166,13 +197,20 @@ cv::Mat polyfit(const std::vector<int>& x, const std::vector<int>& y, int degree
 }
 
 void fitPolyToLaneLines(cv::Mat& warped, int left_peak, int right_peak, cv::Mat& left_fit, cv::Mat& right_fit) {
+    // Number of sliding windows for lane pixels searching
     int num_of_windows = 9;
+    // Height of each window
     int window_height = warped.rows / num_of_windows;
 
+    // Non-zero points in the warped image
     std::vector<cv::Point> nonzero_points;
-    cv::findNonZero(warped, nonzero_points);
+    // x and y coordinates of the non-zero points
     std::vector<double> nonzero_x, nonzero_y;
 
+    // Find all non-zero points in the warped image
+    cv::findNonZero(warped, nonzero_points);
+    
+    // Populate nonzero_x and nonzero_y vectors
     for (const auto& point : nonzero_points) {
         nonzero_x.push_back(point.x);
         nonzero_y.push_back(point.y);
@@ -183,12 +221,14 @@ void fitPolyToLaneLines(cv::Mat& warped, int left_peak, int right_peak, cv::Mat&
     // Minimum pixel number to recenter windows
     int minpix {50};
 
+    // Vectors for storing indices of points within windows
     std::vector<int> left_line_indices, right_line_indices;
 
     cv::Mat win_result_img(warped.size(), CV_8UC3, cv::Scalar(0,0,0));
-    // cv::cvtColor(warped, win_result_img, cv::COLOR_GRAY2BGR);
 
-    cv::Mat good_left_inds, good_right_inds;
+
+    
+    // Starting x positions of the windows
     int leftx_current = left_peak;
     int rightx_current = right_peak;
 
@@ -206,6 +246,7 @@ void fitPolyToLaneLines(cv::Mat& warped, int left_peak, int right_peak, cv::Mat&
         cv::rectangle(win_result_img, cv::Point(win_xleft_low, win_y_low), cv::Point(win_xleft_high, win_y_high), cv::Scalar(0,255,0), 2);
         cv::rectangle(win_result_img, cv::Point(win_xright_low, win_y_low), cv::Point(win_xright_high, win_y_high), cv::Scalar(0,255,0), 2);
 
+        // Get points inside windows and store them
         std::vector<int> good_left_inds, good_right_inds;
         for (size_t i = 0; i < nonzero_x.size(); i++) {
             if (nonzero_y[i] >= win_y_low && nonzero_y[i] < win_y_high &&
@@ -270,9 +311,12 @@ void plotLinesOnWarped(cv::Mat warped, std::vector<int> ploty, std::vector<int> 
         left_polyline.emplace_back(left_fitx[i], ploty[i]);
         right_polyline.emplace_back(right_fitx[i], ploty[i]);
     }
+
     const cv::Point *left_polyline_data = &left_polyline[0];
     const cv::Point *right_polyline_data = &right_polyline[0];
+
     int num_points = static_cast<int>(ploty.size());
+    
     polylines(lane_lines, &left_polyline_data, &num_points, 1, false, cv::Scalar(0, 255, 0), 5);
     polylines(lane_lines, &right_polyline_data, &num_points, 1, false, cv::Scalar(0, 255, 0), 5);
 
@@ -333,6 +377,11 @@ void pipeline(cv::Mat& src, cv::Mat& dst) {
         cv::waitKey(0);
         imshow("Warped", warped);
         cv::waitKey(0);    
+    }
+
+    if (SAVE_IMAGE_FLAG) {
+        displayComparison(src, thresholded);
+        
     }
 
     cv::Mat histogram;
