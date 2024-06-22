@@ -4,6 +4,8 @@
 #include <thread>
 #include <mutex>
 #include <queue>
+#include <condition_variable>
+#include <atomic>
 #include <opencv2/opencv.hpp>
 #include <opencv2/videoio.hpp>
 #include <opencv2/imgproc.hpp>
@@ -44,11 +46,7 @@ int main()
     std::queue<cv::Mat> frame_queue;
     std::mutex queue_mutex;
     std::condition_variable queue_cond_var;
-    bool process = true;
-
-    double fps_show = 0.0;
-    int frame_count = 0;
-    auto start = std::chrono::steady_clock::now();
+    std::atomic<bool> process(true);
 
     std::thread readThread([&]() {
         cv::Mat frame;
@@ -66,6 +64,9 @@ int main()
     });
 
     std::thread processThread([&]() {
+        int processed_frame_count = 0;
+        double total_processing_time = 0.0;
+
         while(process || !frame_queue.empty()) {
             cv::Mat frame, output;
 
@@ -80,20 +81,30 @@ int main()
             }
 
             if (!frame.empty()) {
-                auto processStart = std::chrono::steady_clock::now();
+                auto process_start = std::chrono::steady_clock::now();
 
                 pipeline(frame, output);
 
-                auto processEnd = std::chrono::steady_clock::now();
-                std::chrono::duration<double> processDuration = processEnd - processStart;
+                auto process_end = std::chrono::steady_clock::now();
+                std::chrono::duration<double> process_duration = process_end - process_start;
+                processed_frame_count++;
+                total_processing_time += process_duration.count();
                 // Adjust waitKey delay to account for processing time, ensuring a minimal delay
-                int delay = std::max(1, 30 - static_cast<int>(processDuration.count() * 1000));
+                int delay = std::max(1, 30 - static_cast<int>(process_duration.count() * 1000));
 
-                videoWriter.write(output);
-                // imshow("Final frame:", output);
+                // videoWriter.write(output);
+                imshow("Final frame:", output);
 
                 if (cv::waitKey(delay) == 27) {
                     process = false;
+                }
+
+                if (processed_frame_count % 30 == 0) {
+                    double fps_processing = processed_frame_count / total_processing_time;
+                    std::cout << "Processing FPS: " << fps_processing << std::endl;
+
+                    processed_frame_count = 0;
+                    total_processing_time = 0.0;
                 }
             }
         }
@@ -105,14 +116,11 @@ int main()
     cv::destroyAllWindows();
 
 #else
-    cv::Mat img = cv::imread("/home/robebala/stuff/licenta/lane_detection/images/test5.jpg");
+    cv::Mat img = cv::imread("../images/test3.jpg");
     if (img.empty()) {
         return EXIT_FAILURE;
     }
     cv::Mat output;
-    imshow("Original image", img);
-    cv::waitKey(0);
-    std::cout << "Image size: " << img.size() << std::endl;
 
     pipeline(img, output);
 

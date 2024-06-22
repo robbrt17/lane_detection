@@ -6,37 +6,62 @@
 #include <algorithm>
 
 #define PLOT_FLAG 0
-#define SAVE_IMAGE_FLAG 1
+#define SAVE_FLAG 1
 
-void displayComparison(cv::Mat& img1, cv::Mat& img2) {
-    cv::Mat img2_resized, img2_converted;
-
-    // Ensure both images have the same size
+void imageComparisonAndSave(cv::Mat& img1, cv::Mat& img2, std::string filename) {
     if (img1.size() != img2.size()) {
-        cv::resize(img2, img2_resized, img1.size());
-    } else {
-        img2_resized = img2;
+        std::cerr << "(overlayImages) Error: the sizes of the images do not match" << std::endl;
+        return;
     }
 
+    cv::Mat img1_converted, img2_converted;
+
     // Convert the grayscale image to a 3-channel image
-    if (img1.type() == CV_8UC3 && img2_resized.type() == CV_8UC1) {
-        cv::cvtColor(img2_resized, img2_converted, cv::COLOR_GRAY2BGR);
+    if (img1.type() == CV_8UC3 && img2.type() == CV_8UC1) {
+        cv::cvtColor(img2, img2_converted, cv::COLOR_GRAY2BGR);
     } else {
-        img2_converted = img2_resized;
+        img2_converted = img2;
+    }
+
+    if (img1.type() == CV_8UC1 && img2.type() == CV_8UC3) {
+        cv::cvtColor(img1, img1_converted, cv::COLOR_GRAY2BGR);
+    } else {
+        img1_converted = img1;
     }
 
     // Concatenate the images horizontally
     cv::Mat comparison;
-    cv::hconcat(img1, img2_converted, comparison);
+    cv::hconcat(img1_converted, img2_converted, comparison);
 
-    // Display the concatenated image
-    cv::imshow("Comparison", comparison);
-    cv::waitKey(0);
-
-    cv::imwrite("comparison.png", comparison);
+    cv::imwrite("../image_results/" + filename, comparison);
 }
 
-void detectEdges(cv::Mat& src, cv::Mat& dst) {
+void overlayImages(cv::Mat& img1, cv::Mat& img2, double alpha, double beta, cv::Mat& dst) {
+    if (img1.size() != img2.size()) {
+        std::cerr << "(overlayImages) Error: the sizes of the images do not match" << std::endl;
+        return;
+    }
+
+    cv::Mat img1_converted, img2_converted;
+
+    // Convert the grayscale image to a 3-channel image
+    if (img1.type() == CV_8UC3 && img2.type() == CV_8UC1) {
+        cv::cvtColor(img2, img2_converted, cv::COLOR_GRAY2BGR);
+    } else {
+        img2_converted = img2;
+    }
+
+    if (img1.type() == CV_8UC1 && img2.type() == CV_8UC3) {
+        cv::cvtColor(img1, img1_converted, cv::COLOR_GRAY2BGR);
+    } else {
+        img1_converted = img1;
+    }
+
+    // Overlap images
+    cv::addWeighted(img1_converted, alpha, img2_converted, beta, 0, dst);
+}
+
+void threshold(cv::Mat& src, cv::Mat& dst) {
     // Convert the image to grayscale
     cv::Mat gray;
     cv::cvtColor(src, gray, cv::COLOR_BGR2GRAY);
@@ -47,7 +72,7 @@ void detectEdges(cv::Mat& src, cv::Mat& dst) {
 
     // Apply Canny edge detection
     cv::Mat edges;
-    cv::Canny(blurred, edges, 100, 150, 3, 0);
+    cv::Canny(blurred, edges, 150, 200, 3, 0);
 
     // Convert the original image to HSV color space
     cv::Mat hsv;
@@ -55,7 +80,7 @@ void detectEdges(cv::Mat& src, cv::Mat& dst) {
 
     // Define HSV range for lane colors (you may need to adjust these values)
     cv::Scalar lowerWhite = cv::Scalar(0, 0, 200);
-    cv::Scalar upperWhite = cv::Scalar(180, 25, 255);
+    cv::Scalar upperWhite = cv::Scalar(255, 30, 255);
 
     // Define HSV range for yellow lanes (you may need to adjust these values)
     cv::Scalar lowerYellow = cv::Scalar(18, 94, 140);
@@ -64,11 +89,11 @@ void detectEdges(cv::Mat& src, cv::Mat& dst) {
     // Threshold the HSV image to get only white colors
     cv::Mat whiteMask;
     cv::inRange(hsv, lowerWhite, upperWhite, whiteMask);
-
+    
     // Threshold the HSV image to get only yellow colors
     cv::Mat yellowMask;
     cv::inRange(hsv, lowerYellow, upperYellow, yellowMask);
-
+    
     // Combine the white and yellow masks
     cv::Mat combinedMask;
     cv::bitwise_or(whiteMask, yellowMask, combinedMask);
@@ -79,13 +104,17 @@ void detectEdges(cv::Mat& src, cv::Mat& dst) {
 
     // Copy the result to output image
     dst = combined.clone();
-}
 
-
-void canny(cv::Mat const& src, cv::Mat& dst) {
-    cv::Mat blured;
-    cv::GaussianBlur(src, blured, cv::Size(5, 5), 0, 0);
-    cv::Canny(blured, dst, 100, 150, 3, false);
+    if (SAVE_FLAG) {
+        imageComparisonAndSave(src, edges, "orig_canny_comparison.jpg");
+        imageComparisonAndSave(src, hsv, "orig_hsv_comparison.jpg");
+        cv::imwrite("../image_results/hsv_white_mask.jpg", whiteMask);
+        cv::imwrite("../image_results/hsv_yellow_mask.jpg", yellowMask);
+        cv::imwrite("../image_results/hsv_combined_mask.jpg", combinedMask);
+        imageComparisonAndSave(whiteMask, yellowMask, "white_yellow_hsv_masks_comparison.jpg");
+        imageComparisonAndSave(src, combinedMask, "orig_hsv_mask_comparison.jpg");
+        cv::imwrite("../image_results/final_threshold.jpg", dst);
+    }
 }
 
 void calculateWarpPoints(const cv::Mat& image, std::vector<cv::Point2f>& src, std::vector<cv::Point2f>& dst) {
@@ -104,15 +133,16 @@ void calculateWarpPoints(const cv::Mat& image, std::vector<cv::Point2f>& src, st
     return;
 }
 
-void perspectiveTransform(std::vector<cv::Point2f>& src, std::vector<cv::Point2f>& dst, cv::Mat& M, cv::Mat& Minv) {
-    M = cv::getPerspectiveTransform(src, dst);
-    Minv = cv::getPerspectiveTransform(dst, src);
+void perspectiveTransform(std::vector<cv::Point2f>& src, std::vector<cv::Point2f>& dst, cv::Mat& H, cv::Mat& Hinv) {
+    H = cv::getPerspectiveTransform(src, dst);
+    Hinv = cv::getPerspectiveTransform(dst, src);
     
     return;
 }
 
-void perspectiveWarp(cv::Mat& image, cv::Mat& dst, cv::Mat& M) {
-    cv::warpPerspective(image, dst, M, image.size(), cv::INTER_LINEAR);
+void perspectiveWarp(cv::Mat& image, cv::Mat& dst, cv::Mat& H) {
+    cv::warpPerspective(image, dst, H, image.size(), cv::INTER_LINEAR);
+    cv::imwrite("../image_results/warped.jpg", dst);
 
     return;
 }
@@ -145,7 +175,7 @@ void findLaneHistogramPeaks(cv::Mat& histogram, int& left_half_peak, int& right_
     return;
 }
 
-void plotHistogram(cv::Mat& histogram, cv::Mat& img) {
+void plotHistogram(cv::Mat& histogram, cv::Mat& img, cv::Mat& dst) {
     // Generating x and y axis values for plots
     std::vector<double> fitx, fity, hist_fity;
     fity = linspace(0, img.rows - 1, img.rows);
@@ -169,8 +199,12 @@ void plotHistogram(cv::Mat& histogram, cv::Mat& img) {
     cv::Scalar red(0, 0, 255);
     cv::polylines(black_img, curve, false, red, 2);
 
-    imshow("hist1", black_img);
-    cv::waitKey(0);
+    if (PLOT_FLAG) {
+        imshow("hist1", black_img);
+        cv::waitKey(0);
+    }
+    
+    dst = black_img;
 }
 
 // Function to perform polynomial fitting
@@ -198,7 +232,7 @@ cv::Mat polyfit(const std::vector<int>& x, const std::vector<int>& y, int degree
 
 void fitPolyToLaneLines(cv::Mat& warped, int left_peak, int right_peak, cv::Mat& left_fit, cv::Mat& right_fit) {
     // Number of sliding windows for lane pixels searching
-    int num_of_windows = 9;
+    int num_of_windows = 10;
     // Height of each window
     int window_height = warped.rows / num_of_windows;
 
@@ -225,9 +259,7 @@ void fitPolyToLaneLines(cv::Mat& warped, int left_peak, int right_peak, cv::Mat&
     std::vector<int> left_line_indices, right_line_indices;
 
     cv::Mat win_result_img(warped.size(), CV_8UC3, cv::Scalar(0,0,0));
-
-
-    
+ 
     // Starting x positions of the windows
     int leftx_current = left_peak;
     int rightx_current = right_peak;
@@ -280,11 +312,6 @@ void fitPolyToLaneLines(cv::Mat& warped, int left_peak, int right_peak, cv::Mat&
         }
     }
 
-    if (PLOT_FLAG) {
-        imshow("Windows", win_result_img);
-        cv::waitKey(0);
-    }
-
     // Extract left and right line pixel positions
     std::vector<int> leftx, lefty, rightx, righty;
     for (int idx : left_line_indices) {
@@ -299,9 +326,21 @@ void fitPolyToLaneLines(cv::Mat& warped, int left_peak, int right_peak, cv::Mat&
     // Fit a second order polynomial to each
     left_fit = polyfit(lefty, leftx, 2);
     right_fit = polyfit(righty, rightx, 2);
+
+    cv::Mat warped_with_windows;
+    overlayImages(warped, win_result_img, 1, 1, warped_with_windows);
+
+    if (PLOT_FLAG) {
+        imshow("Warped image with windows", warped_with_windows);
+        cv::waitKey(0);
+    }
+
+    if (SAVE_FLAG) {
+        cv::imwrite("../image_results/warped_with_windows.jpg", warped_with_windows);
+    }
 }
 
-void plotLinesOnWarped(cv::Mat warped, std::vector<int> ploty, std::vector<int> left_fitx, std::vector<int> right_fitx) {
+void linesOnWarped(cv::Mat warped, std::vector<int> ploty, std::vector<int> left_fitx, std::vector<int> right_fitx) {
     // Generate black image and colour lane lines
     cv::Mat lane_lines(warped.size(), CV_8UC3, cv::Scalar(0, 0, 0));
 
@@ -317,17 +356,24 @@ void plotLinesOnWarped(cv::Mat warped, std::vector<int> ploty, std::vector<int> 
 
     int num_points = static_cast<int>(ploty.size());
     
-    polylines(lane_lines, &left_polyline_data, &num_points, 1, false, cv::Scalar(0, 255, 0), 5);
-    polylines(lane_lines, &right_polyline_data, &num_points, 1, false, cv::Scalar(0, 255, 0), 5);
+    polylines(lane_lines, &left_polyline_data, &num_points, 1, false, cv::Scalar(0, 0, 255), 5);
+    polylines(lane_lines, &right_polyline_data, &num_points, 1, false, cv::Scalar(0, 0, 255), 5);
 
     if (PLOT_FLAG) {
-        // Display results
-        imshow("Lane Lines", lane_lines);
+        cv::Mat warped_with_lines;
+        overlayImages(lane_lines, warped, 1, 0.3, warped_with_lines);
+        imshow("Warped image with lane lines", warped_with_lines);
         cv::waitKey(0);
+    }
+    
+    if (SAVE_FLAG) {
+        cv::Mat warped_with_lines;
+        overlayImages(lane_lines, warped, 1, 0.3, warped_with_lines);
+        cv::imwrite("../image_results/warped_with_lines.jpg", warped_with_lines);
     }
 }
 
-void plotMarkedLane(cv::Mat initial_image, cv::Mat warped, cv::Mat Minv, std::vector<int> ploty, std::vector<int> left_fitx, std::vector<int> right_fitx, cv::Mat& dst) {
+void markLane(cv::Mat initial_image, cv::Mat warped, cv::Mat Hinv, std::vector<int> ploty, std::vector<int> left_fitx, std::vector<int> right_fitx, cv::Mat& dst) {
     // Combine ploty and left_fitx, right_fitx into points for polylines
     std::vector<cv::Point> left_points, right_points;
     for (size_t i = 0; i < ploty.size(); ++i) {
@@ -348,7 +394,7 @@ void plotMarkedLane(cv::Mat initial_image, cv::Mat warped, cv::Mat Minv, std::ve
 
     // Warp the lane area back to the original image perspective
     cv::Mat new_warp;
-    cv::warpPerspective(lane_area, new_warp, Minv, initial_image.size());
+    cv::warpPerspective(lane_area, new_warp, Hinv, initial_image.size());
 
     // Blend the lane area with the original image
     cv::addWeighted(initial_image, 1, new_warp, 0.3, 0, dst);
@@ -358,41 +404,31 @@ void plotMarkedLane(cv::Mat initial_image, cv::Mat warped, cv::Mat Minv, std::ve
         cv::imshow("Lane Area on Original Image", dst);
         cv::waitKey(0);
     }
-    
+
+    if (SAVE_FLAG) {
+        cv::imwrite("../image_results/marked_lane.jpg", dst);   
+    }
 }
 
 void pipeline(cv::Mat& src, cv::Mat& dst) {
     cv::Mat thresholded, abs_sobel;
     cv::Mat warped, unwarped; 
     std::vector<cv::Point2f> ROI_points, warp_destination_points;
-    cv::Mat M, Minv;          
+    cv::Mat H, Hinv;          
+    cv::Mat histogram_plot;
 
-    detectEdges(src, thresholded);
+    threshold(src, thresholded);
     calculateWarpPoints(src, ROI_points, warp_destination_points);
-    perspectiveTransform(ROI_points, warp_destination_points, M, Minv); 
-    perspectiveWarp(thresholded, warped, M);
-
-    if (PLOT_FLAG) {
-        imshow("Thresholded", thresholded);
-        cv::waitKey(0);
-        imshow("Warped", warped);
-        cv::waitKey(0);    
-    }
-
-    if (SAVE_IMAGE_FLAG) {
-        displayComparison(src, thresholded);
-        
-    }
+    perspectiveTransform(ROI_points, warp_destination_points, H, Hinv); 
+    perspectiveWarp(thresholded, warped, H);
 
     cv::Mat histogram;
     calculateHistogram(warped, histogram);
 
+    plotHistogram(histogram, warped, histogram_plot);
+
     int left_peak, right_peak;
     findLaneHistogramPeaks(histogram, left_peak, right_peak);
-
-    if (PLOT_FLAG) {
-        plotHistogram(histogram, warped);
-    }
     
     cv::Mat left_fit, right_fit;
     fitPolyToLaneLines(warped, left_peak, right_peak, left_fit, right_fit);
@@ -413,9 +449,20 @@ void pipeline(cv::Mat& src, cv::Mat& dst) {
                         right_fit.at<double>(0, 0);
     }
 
+    linesOnWarped(warped, ploty, left_fitx, right_fitx);
+    markLane(src, warped, Hinv, ploty, left_fitx, right_fitx, dst);
+
     if (PLOT_FLAG) {
-        plotLinesOnWarped(warped, ploty, left_fitx, right_fitx);
-        plotMarkedLane(src, warped, Minv, ploty, left_fitx, right_fitx, dst);
+        imshow("Thresholded", thresholded);
+        cv::waitKey(0);
+        imshow("Warped", warped);
+        cv::waitKey(0);    
+    }
+
+    if (SAVE_FLAG) {
+        imageComparisonAndSave(src, thresholded, "threshold_comparison.jpg");
+        imageComparisonAndSave(thresholded, warped, "warped_comparison.jpg");
+        imageComparisonAndSave(histogram_plot, warped, "histogram_warped_comparison.jpg");
     }
 }
 
