@@ -1,3 +1,4 @@
+// src/Main.cpp
 #include <iostream>
 #include <stdlib.h>
 #include <string>
@@ -12,7 +13,9 @@
 #include <filesystem>
 #include "Utils.hpp"
 
-// #define USE_THREADS
+namespace fs = std::filesystem;
+
+#define USE_THREADS
 
 cv::Mat thresholded, abs_sobel;
 cv::Mat warped, unwarped;   
@@ -78,6 +81,7 @@ int main()
             if (!frame_queue.empty()) {
                 frame = frame_queue.front();
                 frame_queue.pop();
+                lock.unlock();
             }
 
             if (!frame.empty()) {
@@ -116,15 +120,27 @@ int main()
     cv::destroyAllWindows();
 
 #else
-    cv::Mat img = cv::imread("../images/test3.jpg");
-    if (img.empty()) {
-        return EXIT_FAILURE;
+    std::string images_folder = "../images";
+
+    for (const auto & entry : std::filesystem::directory_iterator(images_folder)) {
+        std::string file_path = entry.path().string();
+        std::string file_name = extractFilename(file_path);
+
+        std::filesystem::create_directories("../images_results/" + file_name);
+
+        image_results_path = "../images_results/" + file_name + "/";
+        image_results_filename = "_" + file_name;
+
+        cv::Mat img = cv::imread(file_path);
+        if (img.empty()) {
+            return EXIT_FAILURE;
+        }
+
+        cv::Mat output;
+        pipeline(img, output);
+
+        cv::destroyAllWindows();
     }
-    cv::Mat output;
-
-    pipeline(img, output);
-
-    cv::destroyAllWindows();
 
 #endif
     return 0;
